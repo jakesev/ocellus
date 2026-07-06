@@ -1,0 +1,11 @@
+{
+  "name": "ocellus",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ocellus \u2014 local-first speed-reading book reader with guided pacing, ORP flash training, AI quizzes and OCR.",
+  "type": "module",
+  "scripts": {
+    "start": "node ocellus-gemma-local.mjs",
+    "test": "node --test tests/parse.test.mjs tests/tokenize.test.mjs tests/extract.test.mjs"
+  }
+}

@@ -132,6 +132,11 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "POST" && url.pathname === "/api/ai/assist") {
+      await handleAssist(req, res);
+      return;
+    }
+
     if (req.method === "POST" && url.pathname === "/api/ai/contents") {
       await handleContents(req, res);
       return;
@@ -165,12 +170,12 @@ const server = createServer(async (req, res) => {
 
 server.listen(config.port, config.host, () => {
   const appHost = config.host === "0.0.0.0" || config.host === "::" ? "127.0.0.1" : config.host;
-  const lanUrls = lanAppUrls(config.port, "/app.html");
-  console.log(`Ocellus phone app running at http://${appHost}:${config.port}/app.html`);
+  const lanUrls = lanAppUrls(config.port, "/");
+  console.log(`Ocellus running at http://${appHost}:${config.port}/`);
   if (lanUrls.length) {
     console.log(`Phone Wi-Fi URL: ${lanUrls.join(", ")}`);
   }
-  console.log(`Desktop library page: http://${appHost}:${config.port}/Ocellus.dc.html`);
+  console.log(`(Original design mockup kept at /mockup/app.html)`);
   console.log(`AI provider: ${publicProviderName()}; model: ${config.model}`);
   if (config.provider === "google" && !config.googleApiKey) {
     console.log("Missing GEMMA_API_KEY in .env.local or the current shell.");
@@ -263,6 +268,53 @@ async function handleQuiz(req, res) {
   }
 
   json(res, 200, { ok: true, provider: config.provider, model: config.model, questions });
+}
+
+const ASSIST_ACTIONS = {
+  ask: (q) => `Answer the reader's question using ONLY the excerpt. Question: ${q}`,
+  explain: () => "Explain this passage in plain language for a general reader. Be concise (under 120 words).",
+  simplify: () => "Rewrite this passage in simple, everyday words at the same length or shorter. Keep the meaning exact.",
+  summarize: () => "Summarize this excerpt in 3-5 short sentences. No spoilers beyond the excerpt itself.",
+  keyideas: () => "List the 3-6 key ideas of this excerpt as short bullet points (use the '-' character).",
+  define: (q, sel) => `Define the word "${sel}" as it is used in this sentence. Give: the meaning in this context (one sentence), then a simple synonym. If the word does not appear, say so.`,
+};
+
+async function handleAssist(req, res) {
+  const body = await readJson(req, 4 * 1024 * 1024);
+  const action = String(body.action || "ask").toLowerCase();
+  const build = ASSIST_ACTIONS[action];
+  if (!build) {
+    json(res, 400, { ok: false, error: `Unknown assist action "${action}".` });
+    return;
+  }
+  const context = limitText(body.context || "", 26000);
+  const question = String(body.question || "").slice(0, 500);
+  const selection = String(body.selection || "").slice(0, 120);
+  const title = String(body.title || "the book").slice(0, 160);
+  if (!context) {
+    json(res, 400, { ok: false, error: "Missing text context for the assistant." });
+    return;
+  }
+
+  // Excerpt first, one task, one closing rule — Gemma echoes instruction lists
+  // back at the reader if the prompt reads like a spec.
+  const prompt = [
+    `Excerpt from "${title}":`,
+    '"""',
+    context,
+    '"""',
+    "",
+    build(question, selection),
+    "",
+    "Use only the excerpt above; if it does not contain the answer, say so plainly. Reply with the answer text only — no preamble, no headings, no notes about these instructions.",
+  ].join("\n");
+
+  const text = await runModel({
+    system: "",
+    prompt,
+    temperature: 0.2,
+  });
+  json(res, 200, { ok: true, provider: config.provider, model: config.model, text: String(text || "").trim() });
 }
 
 async function handleContents(req, res) {
@@ -466,6 +518,11 @@ async function runGoogle({ system, prompt, image, wantsJson, temperature, modelN
       temperature,
     },
   };
+  // Gemma 4 is a thinking model: keep thinking minimal for app-speed answers,
+  // and extractGoogleText drops any `thought` parts that still come back.
+  if (/^gemma-4\b/i.test(model)) {
+    body.generationConfig.thinkingConfig = { thinkingLevel: "MINIMAL" };
+  }
   if (wantsJson && !gemmaModel) body.generationConfig.responseMimeType = "application/json";
   if (system && !gemmaModel) body.systemInstruction = { parts: [{ text: system }] };
 
@@ -510,7 +567,7 @@ async function runOllama({ system, prompt, image, wantsJson, temperature }) {
 }
 
 async function serveStatic(req, res, url) {
-  const cleanPath = url.pathname === "/" ? "/app.html" : decodeURIComponent(url.pathname);
+  const cleanPath = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
   const filePath = path.normalize(path.join(APP_DIR, cleanPath));
   const rel = path.relative(APP_DIR, filePath);
   if (rel.startsWith("..") || path.isAbsolute(rel) || path.basename(filePath).startsWith(".")) {
@@ -737,7 +794,9 @@ function extractJsonCandidates(text) {
 
 function extractGoogleText(data) {
   const parts = data?.candidates?.[0]?.content?.parts || [];
-  const text = parts.map((part) => part.text || "").join("").trim();
+  // Gemma 4 marks chain-of-thought parts with thought:true — never show those.
+  const answerParts = parts.filter((part) => !part.thought);
+  const text = answerParts.map((part) => part.text || "").join("").trim();
   if (!text) {
     const reason = data?.candidates?.[0]?.finishReason;
     throw new Error(reason ? `Google AI returned no text. Finish reason: ${reason}` : "Google AI returned no text.");

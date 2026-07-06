@@ -2,7 +2,7 @@
   "name": "Ocellus Speed Reader",
   "short_name": "Ocellus",
   "description": "Speed-reading, guided page reading, OCR and comprehension coaching.",
-  "start_url": "./app.html",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

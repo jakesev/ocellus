@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0B0B0D">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Ocellus">
+  <meta name="description" content="Ocellus — read faster, understand more. Import books, train with a guided pacer or word flasher, and track real progress.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./ocellus-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./ocellus-icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+  <title>Ocellus</title>
+</head>
+<body>
+  <div id="app">
+    <div id="screen"></div>
+    <nav id="tabbar" aria-label="Main navigation"></nav>
+    <div id="overlays"></div>
+    <div id="onboarding" class="hidden"></div>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </div>
+  <input id="file-input" type="file" style="display:none" aria-hidden="true">
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>

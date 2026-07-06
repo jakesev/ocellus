@@ -321,8 +321,10 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
   }
 
   // ---------- flash rendering ----------
+  // Focus point at the TRUE horizontal centre so the tinted pivot letter sits
+  // dead-centre and each word balances around it (no left lean).
   let frameW = 0;
-  function pivotX() { return Math.round(frameW * 0.38); }
+  function pivotX() { return Math.round(frameW * 0.5); }
   function layoutFlashChrome() {
     frameW = flashFrame.clientWidth;
     const x = pivotX();
@@ -393,10 +395,20 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
 
   // ---------- shared tick ----------
   let lastMetaAt = 0;
+  let seenChapter = chapterForToken(engine.i);
   function onTick(i, tok) {
     if (disposed) return;
     if (mode === 'guided') guidedTick(i, tok);
     else flashTick(i, tok);
+    // celebrate when a chapter is finished (moved forward into the next one)
+    const k = chapterForToken(i);
+    if (k > seenChapter) {
+      const doneChap = book.chapters[seenChapter];
+      if (doneChap && !doneChap.skip) { toast('✓ Chapter complete — ' + doneChap.title); vibrate([8, 40, 8]); }
+      seenChapter = k;
+    } else if (k < seenChapter) {
+      seenChapter = k; // moved back; don't re-fire on the way forward again immediately
+    }
     const now = performance.now();
     if (now - lastMetaAt > 250) { lastMetaAt = now; updateMeta(); }
   }
@@ -505,23 +517,48 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
     const secList = el('div', {});
     body.appendChild(secList);
 
+    const progHead = el('div', { style: { fontSize: '11px', color: 'var(--text4)', margin: '2px 0 12px' } });
+    body.insertBefore(progHead, secList);
+
+    function statusMarker(state, label) {
+      // done → green check; reading → accent ring with dot; todo → numbered outline
+      const base = { width: '26px', height: '26px', flex: '0 0 26px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700' };
+      if (state === 'done') return el('div', { style: { ...base, background: 'var(--good)', color: 'var(--on-accent)' } }, svgIcon('check', 15));
+      if (state === 'reading') return el('div', { style: { ...base, background: 'var(--accent)', color: 'var(--on-accent)' } }, svgIcon('play', 13));
+      return el('div', { class: 'mono', style: { ...base, border: '1.5px solid var(--line2)', color: 'var(--text4)' }, text: label });
+    }
+
     function renderSections() {
       const q = (search.value || '').trim().toLowerCase();
       const curK = chapterForToken(engine.i);
+      const readable = book.chapters.filter((c) => !c.skip);
+      const doneCount = book.chapters.filter((c, k) => !c.skip && engine.i >= chapterRange(k).end).length;
+      progHead.textContent = `${doneCount} of ${readable.length} chapter${readable.length === 1 ? '' : 's'} complete · tap any to jump`;
+
+      let num = 0;
       secList.replaceChildren(...book.chapters
         .map((c, k) => ({ c, k }))
         .filter(({ c }) => !q || c.title.toLowerCase().includes(q))
         .map(({ c, k }) => {
           const range = chapterRange(k);
           const mins = estimateMinutes(tokens.slice(range.start, range.end), 0, engine.wpm, settings.variableTiming);
-          const isCur = k === curK;
-          const done = engine.i >= range.end;
-          return el('button', { class: 'pick-row' + (isCur ? ' on' : ''), onclick: () => { sheet.close(); engine.seek(c.tIndex); toast('Jumped to ' + c.title); } },
+          const isCur = k === curK && !c.skip;
+          const done = !c.skip && engine.i >= range.end;
+          if (!c.skip) num += 1;
+          const state = c.skip ? 'skip' : done ? 'done' : isCur ? 'reading' : 'todo';
+          // how far into the CURRENT chapter
+          const inPct = isCur ? Math.round(((engine.i - range.start) / Math.max(1, range.end - range.start)) * 100) : 0;
+          const meta2 = c.skip ? 'Front/back matter'
+            : done ? '✓ Read · ' + fmtTimeLeft(mins)
+            : isCur ? `Reading now · ${inPct}%`
+            : fmtTimeLeft(mins) + ' left';
+          return el('button', { class: 'pick-row' + (isCur ? ' on' : ''), style: { alignItems: 'center' }, onclick: () => { sheet.close(); engine.seek(c.tIndex); toast('Jumped to ' + c.title); } },
+            statusMarker(state, c.skip ? '·' : String(num)),
             el('div', { class: 'grow', style: { minWidth: '0' } },
-              el('div', { class: 'ellip', style: { fontWeight: '700' }, text: c.title }),
-              el('div', { style: { fontSize: '10.5px', color: 'var(--text4)', marginTop: '2px' }, text: (c.skip ? 'Front/back matter · ' : '') + fmtTimeLeft(mins) + (isCur ? ' · reading now' : done ? ' · read' : '') }),
+              el('div', { class: 'ellip', style: { fontWeight: '700', color: done ? 'var(--text3)' : 'var(--text)' }, text: c.title }),
+              el('div', { style: { fontSize: '10.5px', color: done ? 'var(--good)' : 'var(--text4)', marginTop: '2px' }, text: meta2 }),
+              isCur ? el('div', { class: 'pbar', style: { marginTop: '6px' } }, el('div', { style: { width: Math.max(3, inPct) + '%' } })) : null,
             ),
-            c.skip ? el('span', { class: 'badge', text: 'Skip' }) : null,
           );
         }));
     }
@@ -718,7 +755,8 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
   async function saveProgress(ended = false) {
     const i = engine.i;
     const pct = Math.min(100, Math.round(((i + 1) / tokens.length) * 100));
-    await updateBookMeta(meta.id, { pos: ended && pct >= 100 ? tokens.length - 1 : i, pct, lastReadAt: Date.now() });
+    const c = book.chapters[chapterForToken(i)];
+    await updateBookMeta(meta.id, { pos: ended && pct >= 100 ? tokens.length - 1 : i, pct, lastReadAt: Date.now(), resumeChapter: c ? c.title : null });
     const stats = engine.sessionStats();
     if (stats.words >= 30) {
       await addSession({ bookId: meta.id, bookTitle: meta.title, mode, wpm: stats.avgWpm, words: stats.words, seconds: Math.round(stats.minutes * 60) });

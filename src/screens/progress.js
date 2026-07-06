@@ -42,10 +42,42 @@ export async function renderProgress(root, ctx) {
 
 function dayKey(ts) { const d = new Date(ts); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
 
+const GOAL_WORDS = { finish: 'finish more books', study: 'get through study material', focus: 'improve focus', speed: 'read faster', comp: 'remember more' };
+
 function renderOverview(scroll, sessions, books, ctx) {
   const today = dayKey(Date.now());
-  const wordsToday = sessions.filter((s) => dayKey(s.date) === today && s.mode !== 'natural').reduce((n, s) => n + s.words, 0);
+  const todaySessions = sessions.filter((s) => dayKey(s.date) === today && s.mode !== 'natural');
+  const wordsToday = todaySessions.reduce((n, s) => n + s.words, 0);
+  const minsToday = todaySessions.reduce((n, s) => n + (s.seconds || 0), 0) / 60;
   const booksDone = books.filter((b) => b.pct >= 100).length;
+
+  // ---- daily goal ring (set in onboarding — the answers pay off here) ----
+  const goalMin = settings.dailyGoalMin || 10;
+  const pctGoal = Math.min(100, Math.round((minsToday / goalMin) * 100));
+  const R = 34, C = 2 * Math.PI * R;
+  const met = pctGoal >= 100;
+  const goalNames = (settings.goals || []).map((g) => GOAL_WORDS[g]).filter(Boolean);
+  const ring = el('div', { class: 'card', style: { marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '16px' } },
+    el('div', { style: { position: 'relative', width: '80px', height: '80px', flex: '0 0 80px' }, html:
+      `<svg width="80" height="80" viewBox="0 0 80 80" style="transform:rotate(-90deg)">
+        <circle cx="40" cy="40" r="${R}" fill="none" stroke="var(--line2)" stroke-width="7"/>
+        <circle cx="40" cy="40" r="${R}" fill="none" stroke="${met ? 'var(--good)' : 'var(--accent)'}" stroke-width="7" stroke-linecap="round"
+          stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - pctGoal / 100)}"/>
+      </svg>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <div class="mono" style="font-size:17px;font-weight:700;color:${met ? 'var(--good)' : 'var(--text)'}">${Math.round(minsToday)}</div>
+        <div style="font-size:8px;color:var(--text4)">of ${goalMin}m</div>
+      </div>` }),
+    el('div', { class: 'grow' },
+      el('div', { style: { fontSize: '14px', fontWeight: '700' }, text: met ? 'Daily goal met 🎉' : 'Today’s reading goal' }),
+      el('div', { style: { fontSize: '12px', color: 'var(--text3)', marginTop: '3px', lineHeight: '1.5' },
+        text: met
+          ? `${Math.round(minsToday)} min read — nicely done.`
+          : `${Math.round(minsToday)} of ${goalMin} min` + (goalNames.length ? ` · to ${goalNames[0]}` : '') }),
+      el('button', { class: 'btn small', style: { marginTop: '8px' }, onclick: () => ctx.navigate('library') }, met ? 'Keep going' : 'Read now'),
+    ),
+  );
+  scroll.appendChild(ring);
 
   // streak: consecutive days (incl. today or yesterday) with any reading
   const days = new Set(sessions.filter((s) => s.mode !== 'natural').map((s) => dayKey(s.date)));
@@ -126,6 +158,8 @@ function renderOverview(scroll, sessions, books, ctx) {
   const coach = coachHeuristic(sessions);
   const coachCard = el('div', { class: 'card', style: { marginTop: '12px' } });
   coachCard.appendChild(el('div', { class: 'row', style: { gap: '8px', marginBottom: '8px' } }, svgIcon('spark', 16), el('div', { style: { fontSize: '13px', fontWeight: '700' }, text: 'Coach' })));
+  const primaryGoal = (settings.goals || []).map((g) => GOAL_WORDS[g]).filter(Boolean)[0];
+  if (primaryGoal) coachCard.appendChild(el('div', { style: { fontSize: '11px', color: 'var(--text4)', marginBottom: '6px' }, text: `Working toward: ${primaryGoal}` }));
   coachCard.appendChild(el('div', { style: { fontSize: '12.5px', color: 'var(--text3)', lineHeight: '1.55' }, text: coach.summary }));
   if (coach.recommendedWpm) {
     coachCard.appendChild(el('div', { class: 'row', style: { marginTop: '12px' } },

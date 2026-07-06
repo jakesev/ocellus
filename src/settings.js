@@ -23,6 +23,9 @@ export const DEFAULTS = {
   quizLength: 5,
   keepAwake: true,
   haptics: true,
+  // set during onboarding — give the questions a real purpose
+  goals: [],             // why the user is here (tunes coach language)
+  dailyGoalMin: 10,      // daily reading target in minutes → Progress ring
 };
 
 function load() {

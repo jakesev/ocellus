@@ -48,20 +48,40 @@ export async function renderLibrary(root, ctx) {
     return;
   }
 
-  // continue-reading hero (most recently read, unfinished)
-  const hero = active.find((b) => b.pct > 0 && b.pct < 100 && b.lastReadAt) || null;
+  // in-progress books, most-recently-read first → the hero + "jump back in" row
+  const inProgress = active
+    .filter((b) => b.pct > 0 && b.pct < 100 && b.lastReadAt)
+    .sort((a, b) => (b.lastReadAt || 0) - (a.lastReadAt || 0));
+  const hero = inProgress[0] || null;
   if (hero) scroll.appendChild(continueCard(hero, ctx));
+
+  // Jump back in — other books you've started, so continuing any of them is one tap
+  const others = inProgress.slice(1);
+  if (others.length) {
+    scroll.appendChild(el('div', { class: 'eyebrow', text: 'Jump back in' }));
+    others.forEach((b) => scroll.appendChild(el('div', { class: 'book-row', role: 'button', tabindex: '0', 'aria-label': 'Resume ' + b.title, onclick: () => ctx.openReader(b.id) },
+      cover(b, 40, 56),
+      el('div', { class: 'grow' },
+        el('div', { class: 'ellip', style: { fontSize: '14px', fontWeight: '700' }, text: b.title }),
+        el('div', { class: 'row', style: { gap: '8px', marginTop: '6px' } },
+          el('div', { class: 'pbar' }, el('div', { style: { width: Math.max(2, b.pct) + '%' } })),
+          el('span', { class: 'mono', style: { fontSize: '11px', color: 'var(--text3)' }, text: b.pct + '%' }),
+        ),
+      ),
+      el('button', { class: 'icon-btn', style: { color: 'var(--accent)' }, 'aria-label': 'Resume', onclick: (e) => { e.stopPropagation(); ctx.openReader(b.id); } }, svgIcon('play', 16)),
+    )));
+  }
 
   // search (only useful once the shelf grows)
   if (active.length > 6) {
     const inp = el('input', { class: 'search-input', type: 'text', placeholder: 'Search your library', value: query,
       oninput: (e) => { query = e.target.value; listWrap.replaceChildren(...bookRows(filterBooks(active), ctx, root)); } });
-    scroll.appendChild(el('div', { style: { marginBottom: '14px' } }, inp));
+    scroll.appendChild(el('div', { style: { marginBottom: '14px', marginTop: '18px' } }, inp));
   }
 
   scroll.appendChild(el('div', { class: 'row', style: { justifyContent: 'space-between', margin: '0 0 12px' } },
-    el('div', { class: 'eyebrow', style: { margin: '0' }, text: 'Your library' }),
-    el('div', { style: { fontSize: '12px', color: 'var(--text4)' }, text: `${active.length} book${active.length === 1 ? '' : 's'}` }),
+    el('div', { class: 'eyebrow', style: { margin: '18px 0 0' }, text: 'All books' }),
+    el('div', { style: { fontSize: '12px', color: 'var(--text4)', alignSelf: 'flex-end' }, text: `${active.length} book${active.length === 1 ? '' : 's'}` }),
   ));
 
   const listWrap = el('div', {});
@@ -87,24 +107,27 @@ function emptyState(ctx) {
 function continueCard(b, ctx) {
   const mins = b.words && b.pct < 100 ? ((b.words * (1 - b.pct / 100)) / Math.max(120, settings.wpm)) : 0;
   return el('div', { class: 'continue-card' },
-    el('div', { class: 'eyebrow', style: { margin: '0 0 10px' }, text: 'Continue reading' }),
-    el('div', { class: 'row', style: { gap: '14px', alignItems: 'stretch' } },
-      cover(b, 72, 100),
+    el('div', { class: 'eyebrow', style: { margin: '0 0 12px' }, text: 'Continue reading' }),
+    el('div', { class: 'row', style: { gap: '16px', alignItems: 'stretch' } },
+      cover(b, 82, 114),
       el('div', { class: 'grow', style: { display: 'flex', flexDirection: 'column' } },
-        el('div', { class: 'row', style: { gap: '6px', marginBottom: '7px' } },
+        el('div', { class: 'row', style: { gap: '6px', marginBottom: '8px' } },
           el('span', { class: 'badge', text: b.kind }),
-          el('span', { class: 'badge', text: `${b.chapterCount || 1} section${(b.chapterCount || 1) === 1 ? '' : 's'}` }),
+          el('span', { class: 'badge', text: `${b.chapterCount || 1} chapter${(b.chapterCount || 1) === 1 ? '' : 's'}` }),
         ),
-        el('div', { style: { fontSize: '17px', fontWeight: '700', letterSpacing: '-.3px', lineHeight: '1.2' }, text: b.title }),
-        el('div', { style: { fontSize: '12px', color: 'var(--text3)', marginTop: '3px' }, text: (b.author ? b.author + ' · ' : '') + fmtTimeLeft(mins) + ' left at ' + settings.wpm + ' WPM' }),
-        el('div', { class: 'row', style: { marginTop: 'auto', paddingTop: '10px', gap: '10px' } },
-          el('div', { class: 'pbar' }, el('div', { style: { width: b.pct + '%' } })),
-          el('span', { class: 'mono', style: { fontSize: '11px', color: 'var(--text2)' }, text: b.pct + '%' }),
+        el('div', { style: { fontSize: '19px', fontWeight: '800', letterSpacing: '-.4px', lineHeight: '1.15' }, text: b.title }),
+        b.resumeChapter
+          ? el('div', { class: 'ellip', style: { fontSize: '12.5px', color: 'var(--accent)', marginTop: '5px', fontWeight: '600' }, text: '▸ ' + b.resumeChapter })
+          : el('div', { style: { fontSize: '12px', color: 'var(--text3)', marginTop: '5px' }, text: b.author || '' }),
+        el('div', { style: { fontSize: '11.5px', color: 'var(--text4)', marginTop: '4px' }, text: fmtTimeLeft(mins) + ' left · ' + settings.wpm + ' WPM' }),
+        el('div', { class: 'row', style: { marginTop: 'auto', paddingTop: '12px', gap: '10px' } },
+          el('div', { class: 'pbar', style: { height: '6px' } }, el('div', { style: { width: b.pct + '%' } })),
+          el('span', { class: 'mono', style: { fontSize: '12px', color: 'var(--text2)', fontWeight: '600' }, text: b.pct + '%' }),
         ),
       ),
     ),
-    el('button', { class: 'btn primary', style: { marginTop: '14px' }, onclick: () => ctx.openReader(b.id) },
-      svgIcon('play', 16), `Resume — ${b.pct}%`),
+    el('button', { class: 'btn primary', style: { marginTop: '15px', height: '52px', fontSize: '15px' }, onclick: () => ctx.openReader(b.id) },
+      svgIcon('play', 17), b.resumeChapter ? `Resume ${b.resumeChapter}` : `Resume — ${b.pct}%`),
   );
 }
 

@@ -7,10 +7,13 @@ import { SHORT_PAGES, STORY_TITLE, pagesWordCount } from '../passages.js';
 
 const PASSAGES = SHORT_PAGES;
 
+const GOAL_LABELS = { finish: 'finish more books', study: 'get through study material', focus: 'improve focus', speed: 'read faster', comp: 'remember more' };
+
 export function runOnboarding(host, { onDone }) {
   host.classList.remove('hidden');
   let step = 0;
-  let goals = new Set();
+  let goals = new Set(settings.goals || []);
+  let dailyGoal = settings.dailyGoalMin || 10;
   let baselineWpm = null;
   let page = 0;
   let t0 = 0;
@@ -19,6 +22,10 @@ export function runOnboarding(host, { onDone }) {
 
   const finish = async (openImport = false) => {
     clearInterval(clockTimer);
+    // Persist the answers so onboarding actually DOES something: goals colour
+    // the coach's language, the daily target drives the Progress ring.
+    setSetting('goals', [...goals]);
+    setSetting('dailyGoalMin', dailyGoal);
     setOnboarded(true);
     if (baselineWpm) {
       try { await addSession({ bookId: null, bookTitle: 'Onboarding baseline', mode: 'natural', wpm: baselineWpm, words: pagesWordCount(PASSAGES), seconds: Math.round((Date.now() - t0) / 1000) }); } catch {}
@@ -66,12 +73,24 @@ export function runOnboarding(host, { onDone }) {
 
     if (step === 2) {
       body.appendChild(el('div', { class: 'onb-h', text: 'What are you here for?' }));
-      body.appendChild(el('div', { class: 'onb-p', text: 'Pick any that fit — this just tunes the defaults.' }));
+      body.appendChild(el('div', { class: 'onb-p', text: 'Pick any that fit — this shapes your coach and the goal you’ll track.' }));
       const defs = [['finish', 'Finish more books'], ['study', 'Get through study material'], ['focus', 'Improve focus'], ['speed', 'Raw speed'], ['comp', 'Better comprehension']];
       defs.forEach(([k, label]) => body.appendChild(el('button', { class: 'pick-row' + (goals.has(k) ? ' on' : ''), onclick: (e) => {
         goals.has(k) ? goals.delete(k) : goals.add(k);
         e.currentTarget.classList.toggle('on', goals.has(k));
       } }, label)));
+
+      body.appendChild(el('div', { class: 'eyebrow', text: 'Your daily reading goal' }));
+      body.appendChild(el('div', { class: 'onb-p', style: { marginTop: '0' }, text: 'A gentle target — Progress tracks it and celebrates the streak.' }));
+      const goalSeg = el('div', { class: 'seg' },
+        ...[[5, '5 min'], [10, '10 min'], [20, '20 min'], [30, '30 min']].map(([v, label]) =>
+          el('button', { class: dailyGoal === v ? 'on' : '', onclick: (e) => {
+            dailyGoal = v;
+            [...goalSeg.children].forEach((c) => c.classList.remove('on'));
+            e.currentTarget.classList.add('on');
+          } }, label)),
+      );
+      body.appendChild(goalSeg);
       foot.appendChild(next());
     }
 
@@ -127,10 +146,18 @@ export function runOnboarding(host, { onDone }) {
     }
 
     if (step === 6 || step > 5) {
+      const goalList = [...goals].map((g) => GOAL_LABELS[g]).filter(Boolean);
+      const goalLine = goalList.length
+        ? `You want to ${goalList.slice(0, 2).join(' and ')}. Your plan: ${settings.wpm} WPM · ${dailyGoal} min a day.`
+        : `Your plan: ${settings.wpm} WPM · ${dailyGoal} min a day.`;
       body.appendChild(el('div', { style: { flex: '1', display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'center' } },
         el('div', { style: { width: '64px', height: '64px', borderRadius: '20px', background: 'rgba(79,216,166,.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: 'var(--good)' } }, svgIcon('check', 30)),
-        el('div', { class: 'onb-h', text: 'You’re set' }),
-        el('div', { class: 'onb-p', text: 'Add your first book — a PDF, EPUB, Word doc, pasted text, or photos of pages — or start with the built-in sample.' }),
+        el('div', { class: 'onb-h', text: 'Your plan is ready' }),
+        el('div', { class: 'card', style: { textAlign: 'left', display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '14px' } },
+          svgIcon('spark', 18),
+          el('div', { style: { fontSize: '12.5px', color: 'var(--text2)', lineHeight: '1.55' }, text: goalLine }),
+        ),
+        el('div', { class: 'onb-p', style: { margin: '0' }, text: 'Add your first book — PDF, EPUB, Word doc, pasted text, or photos of pages — or start with the built-in sample.' }),
       ));
       foot.appendChild(el('button', { class: 'btn primary', onclick: () => finish(true) }, 'Add my first book'));
       foot.appendChild(el('button', { class: 'btn ghost', style: { marginTop: '8px' }, onclick: () => finish() }, 'Explore the library'));

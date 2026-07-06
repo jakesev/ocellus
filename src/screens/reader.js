@@ -2,7 +2,7 @@
 
 import { el, svgIcon, toast, openSheet, vibrate, fmtTimeLeft, fmtK } from '../ui.js';
 import { settings, setSetting, onSettings } from '../settings.js';
-import { ReaderEngine, setActiveEngine, orpLayout } from '../reader.js';
+import { ReaderEngine, setActiveEngine, orpLayout, clampFlashLeft } from '../reader.js';
 import { orpIndex, estimateMinutes, tokenMs } from '../tokenize.js';
 import { updateBookMeta, addSession, attachQuizToLastSession, addBookmark, listBookmarks, deleteBookmark } from '../db.js';
 import { aiHealth, aiQuiz, aiAssist } from '../ai.js';
@@ -350,10 +350,11 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
       text = parts.join(' ');
     }
 
+    const PAD = 14;
     let size = FONT_FLASH[settings.fontSize] || 46;
     const fontFor = (s) => `600 ${s}px 'Manrope', system-ui, sans-serif`;
     let lay = orpLayout(text, orpIndex(text), fontFor(size));
-    while (lay.totalW > frameW - 28 && size > 17) { size -= 2; lay = orpLayout(text, orpIndex(text), fontFor(size)); }
+    while (lay.totalW > frameW - PAD * 2 && size > 15) { size -= 2; lay = orpLayout(text, orpIndex(text), fontFor(size)); }
 
     const pi = orpIndex(text);
     const marker = settings.flashMarker;
@@ -364,7 +365,9 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
       el('span', { style: { color: tintCol, fontWeight: '700' }, text: text[pi] || '' }),
       el('span', { class: 'post', text: text.slice(pi + 1) }),
     );
-    flashWord.style.left = (pivotX() - lay.pivotCenter) + 'px';
+    // Position so the pivot sits on the centre line, then CLAMP so a long word
+    // (ORP left-of-centre → long tail on the right) can never spill off frame.
+    flashWord.style.left = clampFlashLeft(pivotX(), lay.pivotCenter, lay.totalW, frameW, PAD) + 'px';
 
     const next = tokens[i + Math.max(1, settings.chunk | 0)];
     flashGhost.textContent = next ? (next.img != null ? '□ illustration ahead' : next.w) : 'end of book';
@@ -396,19 +399,27 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
   // ---------- shared tick ----------
   let lastMetaAt = 0;
   let seenChapter = chapterForToken(engine.i);
+  let lastTickIndex = engine.i;
+  const celebrated = new Set(); // chapters we've already toasted this session
   function onTick(i, tok) {
     if (disposed) return;
     if (mode === 'guided') guidedTick(i, tok);
     else flashTick(i, tok);
-    // celebrate when a chapter is finished (moved forward into the next one)
+    // Celebrate ONLY when a chapter is finished by *reading through* its end —
+    // never when scrubbing/jumping OVER an unread chapter (that toast would lie).
+    // A reading step advances by ≤ chunk+1 tokens; a jump moves many.
     const k = chapterForToken(i);
-    if (k > seenChapter) {
+    const delta = i - lastTickIndex;
+    if (k === seenChapter + 1 && delta > 0 && delta <= (settings.chunk | 0) + 1) {
       const doneChap = book.chapters[seenChapter];
-      if (doneChap && !doneChap.skip) { toast('✓ Chapter complete — ' + doneChap.title); vibrate([8, 40, 8]); }
-      seenChapter = k;
-    } else if (k < seenChapter) {
-      seenChapter = k; // moved back; don't re-fire on the way forward again immediately
+      if (doneChap && !doneChap.skip && !celebrated.has(seenChapter)) {
+        celebrated.add(seenChapter);
+        toast('✓ Chapter complete — ' + doneChap.title);
+        vibrate([8, 40, 8]);
+      }
     }
+    if (k !== seenChapter) seenChapter = k; // resync on any move (jump or read)
+    lastTickIndex = i;
     const now = performance.now();
     if (now - lastMetaAt > 250) { lastMetaAt = now; updateMeta(); }
   }
@@ -528,11 +539,21 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
       return el('div', { class: 'mono', style: { ...base, border: '1.5px solid var(--line2)', color: 'var(--text4)' }, text: label });
     }
 
+    // A chapter is done once you've read past its end. The LAST chapter's end
+    // is tokens.length, which engine.i (clamped to length-1) can never reach —
+    // so treat the final word as completing it.
+    function chapterDone(k) {
+      if (book.chapters[k].skip) return false;
+      const end = chapterRange(k).end;
+      const isLast = k === book.chapters.length - 1;
+      return engine.i >= (isLast ? end - 1 : end);
+    }
+
     function renderSections() {
       const q = (search.value || '').trim().toLowerCase();
       const curK = chapterForToken(engine.i);
       const readable = book.chapters.filter((c) => !c.skip);
-      const doneCount = book.chapters.filter((c, k) => !c.skip && engine.i >= chapterRange(k).end).length;
+      const doneCount = book.chapters.filter((c, k) => chapterDone(k)).length;
       progHead.textContent = `${doneCount} of ${readable.length} chapter${readable.length === 1 ? '' : 's'} complete · tap any to jump`;
 
       let num = 0;
@@ -542,8 +563,8 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
         .map(({ c, k }) => {
           const range = chapterRange(k);
           const mins = estimateMinutes(tokens.slice(range.start, range.end), 0, engine.wpm, settings.variableTiming);
-          const isCur = k === curK && !c.skip;
-          const done = !c.skip && engine.i >= range.end;
+          const done = chapterDone(k);
+          const isCur = k === curK && !c.skip && !done; // done takes precedence over "reading now"
           if (!c.skip) num += 1;
           const state = c.skip ? 'skip' : done ? 'done' : isCur ? 'reading' : 'todo';
           // how far into the CURRENT chapter

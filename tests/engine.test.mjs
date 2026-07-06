@@ -37,8 +37,34 @@ function runUntil(t) {
   NOW = t;
 }
 
-const { ReaderEngine } = await import('../src/reader.js');
+const { ReaderEngine, clampFlashLeft } = await import('../src/reader.js');
 const { settings } = await import('../src/settings.js');
+
+test('clampFlashLeft centres a short word on the pivot', () => {
+  // frame 340, pivot at centre 170, word 60 wide with pivot 25 in
+  const left = clampFlashLeft(170, 25, 60, 340, 14);
+  assert.equal(left, 145);            // 170 - 25, no clamping needed
+  assert.ok(left >= 14 && left + 60 <= 340 - 14);
+});
+
+test('clampFlashLeft never lets a long word spill off the right edge', () => {
+  // ORP ~1/3 in: pivotCenter 90 of a 300-wide word, pivot on centre 170
+  const frameW = 340, pad = 14, totalW = 300, pivotCenter = 90;
+  const left = clampFlashLeft(170, pivotCenter, totalW, frameW, pad);
+  assert.ok(left + totalW <= frameW - pad + 0.01, `right edge ${left + totalW} > ${frameW - pad}`);
+  assert.ok(left >= pad);
+});
+
+test('clampFlashLeft never lets a word spill off the left edge', () => {
+  const left = clampFlashLeft(170, 250, 300, 340, 14); // pivot far right in word
+  assert.ok(left >= 14);
+  assert.ok(left + 300 <= 340 - 14 + 0.01);
+});
+
+test('clampFlashLeft pins the start when a word is wider than the frame', () => {
+  const left = clampFlashLeft(170, 100, 400, 340, 14); // totalW 400 > frame
+  assert.equal(left, 14); // start visible; tail unavoidably clipped
+});
 
 function makeTokens(n) {
   return Array.from({ length: n }, (_, i) => ({ w: 'word', p: 0, sEnd: false, pEnd: i === n - 1 }));

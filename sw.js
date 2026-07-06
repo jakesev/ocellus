@@ -2,7 +2,7 @@
 
 // Ocellus service worker — precache the app shell + vendor libs so the app
 // works offline (AI endpoints always go to the network).
-const CACHE_NAME = "ocellus-app-v6";
+const CACHE_NAME = "ocellus-app-v7";
 const APP_SHELL = [
   "./",
   "./index.html",

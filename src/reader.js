@@ -216,3 +216,15 @@ export function orpLayout(word, pivotIdx, font) {
   const totalW = measureCtx.measureText(word).width;
   return { preW, pivotW, totalW, pivotCenter: preW + pivotW / 2 };
 }
+
+/**
+ * Left offset for the flash word: put the pivot on `pivotX`, then clamp so the
+ * word never spills past either frame edge. Pure — unit-tested. Guarantees
+ * left ≥ pad and (when the word fits width-wise) right ≤ frameW − pad.
+ */
+export function clampFlashLeft(pivotX, pivotCenter, totalW, frameW, pad = 14) {
+  const centred = pivotX - pivotCenter;
+  const maxLeft = frameW - pad - totalW; // keeps the right edge inside
+  if (maxLeft < pad) return pad;         // word wider than frame: pin the start
+  return Math.max(pad, Math.min(centred, maxLeft));
+}

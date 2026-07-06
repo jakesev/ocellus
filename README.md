@@ -29,6 +29,13 @@ No build step, no dependencies: plain ES modules served statically. `vendor/` ho
 - `tests/` — `node --test` suites
 - `mockup/` — the original paper.design prototype this app replaced (kept for reference at `/mockup/app.html`)
 
+## Security posture
+
+- The Gemma API key lives ONLY in `.env.local` on the server (gitignored) and is redacted from error messages.
+- The API is same-origin only: no `Access-Control-Allow-Origin`, no private-network opt-in, and any browser request with a foreign `Origin` gets 403 — a malicious website can't spend your AI quota through your LAN server.
+- Per-IP rate limit (120 req/min) on `/api/*`; request bodies are size-capped; static serving blocks path traversal and dotfiles.
+- Books, notes and stats never leave the device (IndexedDB/localStorage). AI requests go only to your own server.
+
 ## Reading science, applied
 
 - **Flash mode** aligns each word so its *optimal recognition point* (the letter ~1/3 in) sits on a fixed focus mark — the eye never moves ([Spritz](https://www.spritzreader.com/how-it-works)).

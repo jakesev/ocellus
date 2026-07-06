@@ -3,7 +3,7 @@
 import { el, svgIcon, toast, consumeNextPop } from './ui.js';
 import { applyTheme, isOnboarded, settings } from './settings.js';
 import { openDB, getBook, getBookText } from './db.js';
-import { tokenize, detectChapters, chaptersWithTokenIndex } from './tokenize.js';
+import { tokenize, detectChapters, chaptersWithTokenIndex, splitLongChapters } from './tokenize.js';
 import { renderLibrary, openImportSheet } from './screens/library.js';
 import { openReaderScreen } from './screens/reader.js';
 import { renderSpeed } from './screens/speed.js';
@@ -68,6 +68,9 @@ async function openReader(bookId, opts = {}) {
     if (!tokens.length) { toast('That book appears to be empty.'); return; }
     let chapters = (text.chapters && text.chapters.length ? text.chapters : detectChapters(text.paras));
     chapters = chaptersWithTokenIndex(chapters, paraStart, tokens.length);
+    // huge or chapter-less books: split into jumpable parts + keep the guided
+    // DOM bounded (the guided view renders one chapter at a time)
+    chapters = splitLongChapters(chapters, paraStart, tokens.length);
 
     tabbarEl.classList.add('hidden');
     history.pushState({ reader: true }, '');
@@ -101,6 +104,17 @@ function closeReaderInternal(historyAlreadyPopped) {
 }
 
 function closeReader() { closeReaderInternal(false); }
+
+// ---------- global error net: never leave the user staring at a dead UI ----------
+let lastErrToastAt = 0;
+function surfaceError(message) {
+  const now = Date.now();
+  if (now - lastErrToastAt < 4000) return; // don't toast-storm
+  lastErrToastAt = now;
+  try { toast('Something went wrong — ' + String(message || 'unexpected error').slice(0, 90)); } catch {}
+}
+window.addEventListener('error', (e) => { console.error(e.error || e.message); surfaceError(e.message); });
+window.addEventListener('unhandledrejection', (e) => { console.error(e.reason); surfaceError(e.reason && e.reason.message); });
 
 // ---------- boot ----------
 async function boot() {

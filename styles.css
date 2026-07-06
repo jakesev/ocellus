@@ -410,3 +410,13 @@ button:disabled { opacity: .45; pointer-events: none; }
 .fadein { animation: fadein .25s ease; }
 .hidden { display: none !important; }
 a { color: var(--accent); }
+
+/* Respect the OS reduced-motion setting: decorative animation collapses,
+   the pacer snaps instead of gliding — everything stays fully functional. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

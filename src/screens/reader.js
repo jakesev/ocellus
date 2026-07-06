@@ -3,7 +3,7 @@
 import { el, svgIcon, toast, openSheet, vibrate, fmtTimeLeft, fmtK } from '../ui.js';
 import { settings, setSetting, onSettings } from '../settings.js';
 import { ReaderEngine, setActiveEngine, orpLayout, clampFlashLeft } from '../reader.js';
-import { orpIndex, estimateMinutes, tokenMs } from '../tokenize.js';
+import { orpIndex, tokenMs } from '../tokenize.js';
 import { updateBookMeta, addSession, attachQuizToLastSession, addBookmark, listBookmarks, deleteBookmark } from '../db.js';
 import { aiHealth, aiQuiz, aiAssist } from '../ai.js';
 
@@ -27,6 +27,26 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
   let unsub = null;
   let bookmarks = [];
   listBookmarks(meta.id).then((m) => { bookmarks = m; updateBookmarkBtn(); });
+
+  // Cumulative timing-multiplier prefix: time-left and per-chapter estimates
+  // become O(1) instead of scanning 100k+ tokens on every meta update.
+  let cumMult = null;
+  let cumVariable = null;
+  function ensureCum() {
+    if (cumMult && cumVariable === settings.variableTiming) return;
+    cumVariable = settings.variableTiming;
+    cumMult = new Float64Array(tokens.length + 1);
+    for (let k = 0; k < tokens.length; k++) {
+      cumMult[k + 1] = cumMult[k] + tokenMs(tokens[k], 1000, cumVariable) / 1000;
+    }
+  }
+  /** minutes to read tokens [from, to) at wpm — O(1) */
+  function minutesFor(from, to, wpm) {
+    ensureCum();
+    const a = Math.max(0, Math.min(from, tokens.length));
+    const b = Math.max(a, Math.min(to, tokens.length));
+    return (cumMult[b] - cumMult[a]) / Math.max(60, wpm);
+  }
 
   // ---------- engine ----------
   const engine = new ReaderEngine({
@@ -315,7 +335,8 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
       const vis = r.top - gScroll.scrollTop;
       const H = gScroll.clientHeight;
       if (vis > H * 0.62 || vis < 36) {
-        gScroll.scrollTo({ top: Math.max(0, r.top - H * 0.33), behavior: engine.playing ? 'smooth' : 'auto' });
+        const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        gScroll.scrollTo({ top: Math.max(0, r.top - H * 0.33), behavior: engine.playing && !reduced ? 'smooth' : 'auto' });
       }
     }
   }
@@ -430,7 +451,7 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
     const pct = Math.round((read / tokens.length) * 100);
     fill.style.width = pct + '%';
     metaLeft.textContent = `${fmtK(read)} / ${fmtK(tokens.length)} words`;
-    const minsLeft = estimateMinutes(tokens, i, engine.wpm, settings.variableTiming);
+    const minsLeft = minutesFor(i, tokens.length, engine.wpm);
     metaRight.textContent = `${pct}% · ${fmtTimeLeft(minsLeft)} left`;
     const k = chapterForToken(i);
     const c = book.chapters[k];
@@ -562,7 +583,7 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
         .filter(({ c }) => !q || c.title.toLowerCase().includes(q))
         .map(({ c, k }) => {
           const range = chapterRange(k);
-          const mins = estimateMinutes(tokens.slice(range.start, range.end), 0, engine.wpm, settings.variableTiming);
+          const mins = minutesFor(range.start, range.end, engine.wpm);
           const done = chapterDone(k);
           const isCur = k === curK && !c.skip && !done; // done takes precedence over "reading now"
           if (!c.skip) num += 1;

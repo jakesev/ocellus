@@ -132,6 +132,40 @@ export function chaptersWithTokenIndex(chapters, paraStart, tokenCount) {
 }
 
 /**
+ * Split oversized chapters into "Title · n/N" parts at paragraph boundaries.
+ * Two jobs: (1) navigation — a 90k-word chapter-less book still gets jumpable
+ * sections; (2) performance — the guided view renders one chapter at a time,
+ * so no chapter may put tens of thousands of spans in the DOM.
+ */
+export function splitLongChapters(chapters, paraStart, tokenCount, max = 6000) {
+  const out = [];
+  for (let k = 0; k < chapters.length; k++) {
+    const c = chapters[k];
+    const end = k + 1 < chapters.length ? chapters[k + 1].tIndex : tokenCount;
+    const span = end - c.tIndex;
+    if (c.skip || span <= max) { out.push(c); continue; }
+    const parts = Math.ceil(span / max);
+    const target = Math.ceil(span / parts);
+    out.push({ ...c, title: `${c.title} · 1/${parts}` });
+    let cursor = c.tIndex;
+    for (let p = 2; p <= parts; p++) {
+      const want = c.tIndex + target * (p - 1);
+      // snap forward to the nearest paragraph start ≥ want (binary search)
+      let lo = 0, hi = paraStart.length - 1, snap = -1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (paraStart[mid] >= want) { snap = paraStart[mid]; hi = mid - 1; }
+        else lo = mid + 1;
+      }
+      if (snap < 0 || snap >= end || snap <= cursor) break; // no clean boundary left
+      out.push({ ...c, title: `${c.title} · ${p}/${parts}`, tIndex: snap });
+      cursor = snap;
+    }
+  }
+  return out;
+}
+
+/**
  * Optimal Recognition Point — the letter the eye should land on.
  * Research (Spritz): eyes naturally fixate ~1/3 into a word; longer words → ORP
  * sits further left of centre. Index is over the full string but anchored to letters.

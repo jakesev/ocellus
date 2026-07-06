@@ -91,19 +91,49 @@ const clientScript = String.raw`
 })();
 `;
 
+// ─── API protection ──────────────────────────────────────────────────────────
+// The app is served BY this server, so every legitimate request is same-origin
+// and needs no CORS at all. Browser requests carrying a foreign Origin are
+// rejected — otherwise any public website the user visits could quietly call
+// the LAN endpoints and spend their Gemma quota.
+const RATE_LIMIT = { windowMs: 60_000, max: 120 };
+const rateBuckets = new Map(); // ip → {count, windowStart}
+
+function apiGate(req, res) {
+  const origin = req.headers.origin;
+  if (origin) {
+    let originHost = null;
+    try { originHost = new URL(origin).host; } catch {}
+    if (originHost !== req.headers.host) {
+      json(res, 403, { ok: false, error: "Cross-origin requests are not allowed." });
+      return false;
+    }
+  }
+  const ip = req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  const bucket = rateBuckets.get(ip);
+  if (!bucket || now - bucket.windowStart > RATE_LIMIT.windowMs) {
+    rateBuckets.set(ip, { count: 1, windowStart: now });
+  } else if (++bucket.count > RATE_LIMIT.max) {
+    json(res, 429, { ok: false, error: "Too many requests — slow down a little." });
+    return false;
+  }
+  if (rateBuckets.size > 1000) rateBuckets.clear(); // bounded memory
+  return true;
+}
+
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host || `${config.host}:${config.port}`}`);
 
     if (req.method === "OPTIONS") {
-      res.writeHead(204, {
-        ...corsHeaders(),
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-      });
+      // Same-origin requests never preflight; no cross-origin allowances given.
+      res.writeHead(204, { Allow: "GET,POST,OPTIONS" });
       res.end();
       return;
     }
+
+    if (url.pathname.startsWith("/api/") && !apiGate(req, res)) return;
 
     if (req.method === "GET" && url.pathname === "/api/ai/health") {
       await handleHealth(req, res, url);
@@ -816,10 +846,10 @@ function send(res, status, body, type) {
 }
 
 function corsHeaders() {
-  return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Private-Network": "true",
-  };
+  // Intentionally empty: the app is same-origin with this server. No
+  // Access-Control-Allow-Origin and no Access-Control-Allow-Private-Network —
+  // public websites must not be able to reach the LAN API.
+  return {};
 }
 
 function json(res, status, body) {

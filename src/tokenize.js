@@ -187,8 +187,10 @@ export function orpIndex(word) {
 
 /**
  * Per-token display duration.
- * Variable timing (research-backed): long words +40–70%, numbers +60%,
- * clause punctuation ×~1.5, sentence ends ×~2.2, paragraph ends ×~2.6.
+ * Variable timing keeps comprehension without feeling "sticky": pauses do NOT
+ * stack (paragraph OR sentence OR clause — whichever applies), length/number
+ * bonuses are small, and the total multiplier is hard-capped at 2.2× so no
+ * word ever visibly hangs.
  */
 export function tokenMs(token, baseMs, variable = true) {
   if (token.img != null) return baseMs; // images pause the reader separately
@@ -196,15 +198,15 @@ export function tokenMs(token, baseMs, variable = true) {
   const w = token.w || '';
   const len = w.replace(/[^\p{L}\p{N}]/gu, '').length;
   let m = 1;
-  if (len >= 13) m += 0.7;
-  else if (len >= 8) m += 0.4;
-  if (/\d/.test(w)) m += 0.6;
+  if (len >= 13) m += 0.4;
+  else if (len >= 8) m += 0.25;
+  if (/\d/.test(w)) m += 0.3;
   const sentenceEnd = /[.!?…]["'”’)\]]*$/.test(w);
   const clauseEnd = /[,;:—–]["'”’)\]]*$/.test(w);
-  if (sentenceEnd) m += 1.2;
-  else if (clauseEnd) m += 0.5;
-  if (token.pEnd) m += 1.4;
-  return Math.round(baseMs * m);
+  if (token.pEnd) m += 1.0;
+  else if (sentenceEnd) m += 0.8;
+  else if (clauseEnd) m += 0.35;
+  return Math.round(baseMs * Math.min(m, 2.2));
 }
 
 /** Estimated minutes to read `count` tokens at wpm with the variable-timing model. */

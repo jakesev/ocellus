@@ -4,6 +4,20 @@
 import { tokenMs, sentenceStart, paraStartIndex, nextParaIndex } from './tokenize.js';
 import { settings } from './settings.js';
 
+/**
+ * When should the next word appear? Keeps the configured WPM honest:
+ * - on time / slightly late → keep the original cadence (prevTarget + dur),
+ *   absorbing timer jitter instead of pushing every word later ("sticky");
+ * - late but < 2 words → compress this word a little (never below 0.6×dur,
+ *   so nothing flickers) to catch back up to the true rate;
+ * - stalled ≥ 2 words (tab slept, GC pause) → re-anchor, never burst.
+ * Pure — unit-tested.
+ */
+export function nextFlashTarget(prevTarget, now, dur) {
+  if (now - prevTarget >= dur * 2) return now + dur;          // real stall: re-anchor
+  return Math.max(prevTarget + dur, now + dur * 0.6);         // keep cadence, no flicker
+}
+
 export class ReaderEngine {
   /**
    * opts: {tokens, startIndex, onTick(i, token), onPauseAt(token, reason), onDone, onPlayState(bool)}
@@ -32,7 +46,7 @@ export class ReaderEngine {
     if (this.playing || !this.tokens.length) return;
     if (this.i >= this.tokens.length - 1 && this.tokens.length > 1) this.i = 0; // replay from start when at end
     this.playing = true;
-    this._rampLeft = settings.rampUp ? 8 : 0;
+    this._rampLeft = settings.rampUp ? 6 : 0;
     this._playStartedAt = performance.now();
     if (!this.session.startedAt) this.session.startedAt = Date.now();
     this.onPlayState(true);
@@ -45,6 +59,7 @@ export class ReaderEngine {
   pause() {
     if (!this.playing) return;
     this.playing = false;
+    this.pausedAt = Date.now();
     clearTimeout(this._timer);
     this._timer = null;
     if (this._playStartedAt != null) {
@@ -78,7 +93,7 @@ export class ReaderEngine {
       ms *= 0.88;
     }
     if (this._rampLeft > 0) {
-      ms *= 1 + 0.09 * this._rampLeft; // ease from ~1.7× down to 1× over 8 words
+      ms *= 1 + 0.075 * this._rampLeft; // gentle ease-in: ~1.45× → 1× over 6 words
     }
     return ms;
   }
@@ -131,13 +146,7 @@ export class ReaderEngine {
     }
 
     const dur = this._durFor(tok);
-    this._next = this._next + dur;
-    // Never burst-catch-up: after any stall (tab hiccup, heavy layout, sleep)
-    // re-anchor instead of firing a rapid chain of zero-wait ticks — that was
-    // the "shoots through the words" bug. Small jitter (<½ word) may tick
-    // promptly once; anything larger gets a full word duration again.
-    const now = performance.now();
-    if (this._next < now - dur * 0.5) this._next = now + dur;
+    this._next = nextFlashTarget(this._next, performance.now(), dur);
     this.onTick(this.i, tok);
     this._schedule();
   }

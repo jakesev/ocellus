@@ -14,6 +14,7 @@ export const DEFAULTS = {
   lineSpacing: 'comfortable', // compact | comfortable | spacious
   fontSize: 'M',            // S | M | L | XL
   flashMarker: 'strong',    // pivot letter tint: off | subtle | strong
+  flashAlign: 'center',     // word anchor: center (balanced) | orp (focus letter on the line)
   centerGuide: true,        // vertical alignment guide in flash frame
   variableTiming: true,     // longer words / punctuation get more time
   rampUp: true,             // ease into speed on play

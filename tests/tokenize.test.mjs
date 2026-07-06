@@ -101,6 +101,15 @@ test('tokenMs is flat when variable timing is off', () => {
   assert.equal(tokenMs({ w: 'extraordinarily.', pEnd: true }, 200, false), 200);
 });
 
+test('tokenMs pauses never stack past the 2.2× cap (no "sticky" words)', () => {
+  // worst case: very long numbered word ending a paragraph
+  const worst = tokenMs({ w: 'antidisestablishmentarianism-1984.', pEnd: true }, 200);
+  assert.ok(worst <= 200 * 2.2 + 1, `worst-case ${worst}ms exceeds cap`);
+  // a paragraph end alone stays exactly at its own weight, not sentence+paragraph summed
+  const para = tokenMs({ w: 'end.', pEnd: true }, 200);
+  assert.equal(para, 400); // 2.0×, not 2.0+0.8 stacked
+});
+
 test('detectChapters finds CHAPTER/roman/numbered headings and skips front matter', () => {
   const paras = paragraphsFromText([
     'CONTENTS',

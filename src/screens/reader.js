@@ -386,9 +386,11 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
       el('span', { style: { color: tintCol, fontWeight: '700' }, text: text[pi] || '' }),
       el('span', { class: 'post', text: text.slice(pi + 1) }),
     );
-    // Position so the pivot sits on the centre line, then CLAMP so a long word
-    // (ORP left-of-centre → long tail on the right) can never spill off frame.
-    flashWord.style.left = clampFlashLeft(pivotX(), lay.pivotCenter, lay.totalW, frameW, PAD) + 'px';
+    // Anchor: 'center' balances the whole word on the middle line (default —
+    // reads as truly centred); 'orp' locks the tinted letter to the line
+    // (classic RSVP). Clamp so no word can spill off the frame either way.
+    const anchor = settings.flashAlign === 'orp' ? lay.pivotCenter : lay.totalW / 2;
+    flashWord.style.left = clampFlashLeft(pivotX(), anchor, lay.totalW, frameW, PAD) + 'px';
 
     const next = tokens[i + Math.max(1, settings.chunk | 0)];
     flashGhost.textContent = next ? (next.img != null ? '□ illustration ahead' : next.w) : 'end of book';
@@ -413,7 +415,11 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
   const origPlay = engine.play.bind(engine);
   engine.play = () => {
     if (countingDown) return;
-    if (mode === 'flash' && !engine.playing && settings.rampUp) flashCountdown(origPlay);
+    // countdown only when the eye actually needs to settle: a fresh session or
+    // a long pause — not on every quick pause/resume (that felt sticky)
+    const freshStart = engine.session.words === 0;
+    const longPause = engine.pausedAt && Date.now() - engine.pausedAt > 15000;
+    if (mode === 'flash' && !engine.playing && settings.rampUp && (freshStart || longPause)) flashCountdown(origPlay);
     else origPlay();
   };
 
@@ -826,7 +832,7 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
     if (['fontSize', 'lineSpacing', 'dimOthers', 'guideStyle', 'guideIntensity', 'tint'].includes(key) && mode === 'guided') {
       chapterIdx = -1; onTick(engine.i, engine.token);
     }
-    if (['flashMarker', 'centerGuide', 'fontSize', 'tint', 'chunk'].includes(key) && mode === 'flash') {
+    if (['flashMarker', 'centerGuide', 'fontSize', 'tint', 'chunk', 'flashAlign'].includes(key) && mode === 'flash') {
       layoutFlashChrome(); flashTick(engine.i, engine.token);
     }
   });

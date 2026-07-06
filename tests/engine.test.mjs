@@ -37,8 +37,29 @@ function runUntil(t) {
   NOW = t;
 }
 
-const { ReaderEngine, clampFlashLeft } = await import('../src/reader.js');
-const { settings } = await import('../src/settings.js');
+const { ReaderEngine, clampFlashLeft, nextFlashTarget } = await import('../src/reader.js');
+const { settings, DEFAULTS } = await import('../src/settings.js');
+
+test('flash words are centred by default (ORP stays optional)', () => {
+  assert.equal(DEFAULTS.flashAlign, 'center');
+});
+
+test('nextFlashTarget keeps cadence through small timer jitter (honest WPM)', () => {
+  // tick fired 40ms late at 200ms/word — cadence must NOT slip a full word
+  const next = nextFlashTarget(1000, 1040, 200);
+  assert.equal(next, 1200); // original schedule preserved → average stays 300wpm
+});
+
+test('nextFlashTarget compresses gently when moderately late, never below 0.6×', () => {
+  // 250ms late: prev+dur (1200) is in the past vs now+0.6dur
+  const next = nextFlashTarget(1000, 1250, 200);
+  assert.equal(next, 1250 + 120); // now + 0.6×dur — catches up without flicker
+});
+
+test('nextFlashTarget re-anchors after a real stall (no burst, no penalty)', () => {
+  const next = nextFlashTarget(1000, 1500, 200); // 2.5 words late
+  assert.equal(next, 1700); // now + dur exactly
+});
 
 test('clampFlashLeft centres a short word on the pivot', () => {
   // frame 340, pivot at centre 170, word 60 wide with pivot 25 in

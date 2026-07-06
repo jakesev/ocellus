@@ -52,6 +52,7 @@ export async function renderSettings(root, ctx) {
 
   // ---- flash trainer ----
   section('Flash trainer',
+    segRow('Word position', 'Centered keeps every word balanced on the middle · Focus-letter locks the tinted letter to one spot (classic RSVP)', 'flashAlign', [['center', 'Centered'], ['orp', 'Focus letter']]),
     segRow('Focus letter', 'Tints the letter your eye should land on', 'flashMarker', [['off', 'Off'], ['subtle', 'Subtle'], ['strong', 'Strong']]),
     toggleRow('Alignment guide', 'Faint vertical line at the focus point', 'centerGuide'),
   );

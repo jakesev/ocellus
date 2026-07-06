@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#09090A}
+  @keyframes ocblink{0%,100%{opacity:1}50%{opacity:.35}}
+</style>
+</helmet>
+<div style="width:1264px;background:radial-gradient(1200px 600px at 20% -5%,#141319,#09090A 60%);padding:64px 64px 96px;font-family:'Manrope',system-ui,sans-serif;color:#F5F5F6">
+
+  <div style="display:flex;gap:56px;align-items:flex-start;margin-bottom:76px">
+    <div style="max-width:520px;padding-top:8px">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:26px">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10.6" stroke="#F5F5F6" stroke-width=".9" opacity=".4"/><circle cx="12" cy="12" r="6.4" stroke="#F5F5F6" stroke-width="1" opacity=".7"/><circle cx="12" cy="12" r="2.5" fill="#FF5A47"/></svg>
+        <div>
+          <div style="font-size:34px;font-weight:800;letter-spacing:-1px;line-height:1">Ocellus</div>
+          <div style="font-size:13px;color:#8A8A92;letter-spacing:.3px;margin-top:3px">Read faster. Understand more.</div>
+        </div>
+      </div>
+      <div style="font-size:16.5px;line-height:1.65;color:#B8B8BF;text-wrap:pretty">Kindle-style reading + guided eye tracking + speed training + comprehension coaching. Open a book, tap where to start, and a <span style="color:#F5F5F6;font-weight:600">moving guide</span> paces your eyes through full pages — with a one-word <span style="color:#F5F5F6;font-weight:600">Flash Trainer</span> for drills. <span style="color:#FF5A47;font-weight:700">Ocellus helps you find the fastest pace you can actually understand.</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:9px;margin-top:26px">
+        <span style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:#C8C8CE;padding:8px 12px;border-radius:10px;background:#141418;border:1px solid rgba(255,255,255,.07)"><span style="width:12px;height:12px;border-radius:3px;background:#FF5A47"></span>Guide / accent #FF5A47</span>
+        <span style="font-size:12px;font-weight:600;color:#C8C8CE;padding:8px 12px;border-radius:10px;background:#141418;border:1px solid rgba(255,255,255,.07)">Guided Page Reader · default</span>
+        <span style="font-size:12px;font-weight:600;color:#C8C8CE;padding:8px 12px;border-radius:10px;background:#141418;border:1px solid rgba(255,255,255,.07)">Flash Trainer · drills</span>
+        <span style="font-size:12px;font-weight:600;color:#C8C8CE;padding:8px 12px;border-radius:10px;background:#141418;border:1px solid rgba(255,255,255,.07)">Local-first · Gemma AI OCR & quizzes</span>
+      </div>
+      <div style="margin-top:30px;padding:18px 20px;border-radius:16px;background:rgba(255,90,71,.06);border:1px solid rgba(255,90,71,.2)">
+        <div style="display:flex;align-items:center;gap:9px;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#FF5A47;margin-bottom:10px"><span style="width:8px;height:8px;border-radius:50%;background:#FF5A47;animation:ocblink 1.6s infinite"></span>The live prototype →</div>
+        <div style="font-size:13.5px;line-height:1.6;color:#C8C8CE">Everything on the right phone works. Open <span style="color:#F5F5F6">The Time Machine</span> — the full page appears. <span style="color:#F5F5F6">Tap any word</span>, a pin drops, press Start, and the guide moves through the text at your WPM. Switch <span style="color:#F5F5F6">Guided | Flash</span> without losing your place.</div>
+      </div>
+    </div>
+
+    <div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:16px">
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#4FD8A6;padding:7px 14px;border-radius:20px;background:rgba(79,216,166,.1);border:1px solid rgba(79,216,166,.25)"><span style="width:7px;height:7px;border-radius:50%;background:#4FD8A6;animation:ocblink 1.6s infinite"></span>Live — tap to try</div>
+      <div style="width:379px;height:793px;position:relative">
+        <div style="width:421px;height:881px;transform:scale(.9);transform-origin:top left;position:absolute;top:0;left:0">
+          <dc-import name="Phone" mode="interactive" route="library" hint-size="421px,881px"></dc-import>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <sc-for list="{{ sections }}" as="sec" hint-placeholder-count="4">
+    <div style="margin-bottom:56px">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:26px">
+        <span style="font-family:'JetBrains Mono';font-size:13px;font-weight:600;color:#FF5A47;padding:4px 10px;border-radius:8px;background:rgba(255,90,71,.12)">{{ sec.num }}</span>
+        <span style="font-size:19px;font-weight:800;letter-spacing:-.3px">{{ sec.title }}</span>
+        <span style="flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.1),transparent)"></span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:38px">
+        <sc-for list="{{ sec.tiles }}" as="tile" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;gap:14px;width:244px">
+            <div style="padding-left:3px">
+              <div style="font-size:15px;font-weight:700;color:#F5F5F6;letter-spacing:-.2px">{{ tile.caption }}</div>
+              <div style="font-size:12px;color:#6A6A72;margin-top:3px">{{ tile.sub }}</div>
+            </div>
+            <div style="width:244px;height:511px;position:relative">
+              <div style="width:421px;height:881px;transform:scale(.58);transform-origin:top left;position:absolute;top:0;left:0">
+                <dc-import name="Phone" mode="static" route="{{ tile.route }}" hint-size="421px,881px"></dc-import>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-for>
+
+  <div style="margin-top:20px;padding-top:28px;border-top:1px solid rgba(255,255,255,.07);display:flex;align-items:center;justify-content:space-between;color:#5A5A62;font-size:12px">
+    <span>Ocellus — speed-reading book reader · concept prototype</span>
+    <span style="font-family:'JetBrains Mono'">14 screens · 1 live flow</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals(){
+    const sections = [
+      {num:'01', title:'Guided Page Reader — the core', tiles:[
+        {route:'guided', caption:'Guided Reader · idle', sub:'Full page · tap any word'},
+        {route:'guided-pin', caption:'Start Pin', sub:'“Start from here?” bubble'},
+        {route:'guided-running', caption:'Guide running', sub:'Moving underline + focus band'},
+        {route:'guided-paused', caption:'Paused', sub:'Holds the exact word'},
+        {route:'guided-scroll', caption:'Auto-scroll', sub:'Deep in the page · line stays comfy'},
+        {route:'start', caption:'Open a book', sub:'Continue · Guided · Flash · Speed'}
+      ]},
+      {num:'02', title:'Flash Trainer — the drill', tiles:[
+        {route:'trainer', caption:'Flash · default', sub:'Centred word · no marker'},
+        {route:'flash-marker', caption:'Flash · marker on', sub:'Optional focus marker'},
+        {route:'passage', caption:'Zoom out', sub:'Tap any word to reposition'},
+        {route:'trainer-image', caption:'Image pause', sub:'Show / skip illustrations'},
+        {route:'trainer-catchup', caption:'Smart buffer', sub:'Soft "catching up" pause'},
+        {route:'session-end', caption:'Session complete', sub:'Auto-quiz off → calm card'}
+      ]},
+      {num:'03', title:'Library & import', tiles:[
+        {route:'library', caption:'Home / Library', sub:'Bookshelf · resume · time-to-finish'},
+        {route:'book-menu', caption:'Book menu', sub:'Rename · export · archive · delete'},
+        {route:'delete-confirm', caption:'Delete confirm', sub:'Removes all local data'},
+        {route:'archived', caption:'Archived books', sub:'Restore or delete'},
+        {route:'import', caption:'Import', sub:'EPUB · PDF · photos · scan'},
+        {route:'extract-photo', caption:'Gemma OCR', sub:'Reading scanned pages'},
+        {route:'extract-epub', caption:'Front-matter confirm', sub:'Start at Chapter 1?'}
+      ]},
+      {num:'04', title:'Navigation & skipping', tiles:[
+        {route:'contents', caption:'Contents · EPUB', sub:'Search · bookmarks · recent'},
+        {route:'contents-pdf', caption:'Smart contents · PDF', sub:'Intro · concepts · cases'},
+        {route:'contents-paper', caption:'Smart contents · paper', sub:'Abstract · method · results'},
+        {route:'exercise-ask', caption:'Skip exercise?', sub:'Pause & ask'}
+      ]},
+      {num:'05', title:'Measure & improve', tiles:[
+        {route:'speed', caption:'Check reading speed', sub:'Natural WPM · no guide, no flashing'},
+        {route:'speed-result', caption:'Natural result', sub:'Your speed without the app'},
+        {route:'progress', caption:'Progress · overview', sub:'Normal vs Guided vs Flash'},
+        {route:'progress-books', caption:'Progress · books', sub:'Per-book % + time to finish'},
+        {route:'progress-comp', caption:'Progress · comprehension', sub:'Per-mode scores & mastery'},
+        {route:'coach', caption:'AI coach', sub:'Fastest pace you understand'},
+        {route:'quiz', caption:'Comprehension quiz', sub:'Gemma-generated questions'},
+        {route:'quiz-result', caption:'Quiz result', sub:'Saved by mode · speed · date'}
+      ]},
+      {num:'06', title:'Settings & themes', tiles:[
+        {route:'settings', caption:'Settings', sub:'Mode · guide style · skipping'},
+        {route:'library-light', caption:'Light theme', sub:'Paper-like · flash box stays dark'}
+      ]},
+      {num:'07', title:'First-run onboarding', tiles:[
+        {route:'onb-welcome', caption:'Welcome', sub:'Read faster. Understand more.'},
+        {route:'onb-style', caption:'Choose how to read', sub:'Guided vs Flash cards'},
+        {route:'onb-goals', caption:'Goals & plan', sub:'Pick goals + frequency'},
+        {route:'onb-baseline-result', caption:'Baseline result', sub:'Your natural WPM'},
+        {route:'onb-wpm', caption:'Starting speed', sub:'Recommended WPM'},
+        {route:'onb-complete', caption:'Ready', sub:'Setup summary'}
+      ]}
+    ];
+    return { sections };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0B0B0D">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Ocellus">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./ocellus-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./ocellus-icon.svg">
+  <title>Ocellus</title>
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #0B0B0D;
+      color: #F5F5F6;
+      overscroll-behavior: none;
+    }
+
+    #app-viewport {
+      width: 395px;
+      height: 855px;
+      overflow: hidden;
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform-origin: top left;
+      background: #0B0B0D;
+    }
+
+    #phone-frame {
+      width: 421px;
+      height: 881px;
+      border: 0;
+      transform: translate(-13px, -13px);
+      transform-origin: top left;
+      background: #0B0B0D;
+    }
+  </style>
+</head>
+<body>
+  <main id="app-viewport" aria-label="Ocellus app">
+    <iframe id="phone-frame" title="Ocellus" src="./Phone.dc.html"></iframe>
+  </main>
+  <script>
+    const viewport = document.getElementById("app-viewport");
+    const designWidth = 395;
+    const designHeight = 855;
+
+    function fit() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const scale = Math.min(width / designWidth, height / designHeight);
+      const x = Math.max(0, (width - designWidth * scale) / 2);
+      const y = Math.max(0, (height - designHeight * scale) / 2);
+      viewport.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    }
+
+    window.addEventListener("resize", fit);
+    window.addEventListener("orientationchange", fit);
+    fit();
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    }
+  </script>
+</body>
+</html>

@@ -3,11 +3,9 @@
 import { el, svgIcon } from '../ui.js';
 import { settings, setSetting, setOnboarded } from '../settings.js';
 import { addSession } from '../db.js';
+import { SHORT_PAGES, STORY_TITLE, pagesWordCount } from '../passages.js';
 
-const PASSAGES = [
-  'I went to the woods because I wished to live deliberately, to front only the essential facts of life, and see if I could not learn what it had to teach, and not, when I came to die, discover that I had not lived. I did not wish to live what was not life, living is so dear; nor did I wish to practise resignation, unless it was quite necessary.',
-  'I wanted to live deep and suck out all the marrow of life, to live so sturdily and Spartan-like as to put to rout all that was not life, to cut a broad swath and shave close, to drive life into a corner, and reduce it to its lowest terms.',
-];
+const PASSAGES = SHORT_PAGES;
 
 export function runOnboarding(host, { onDone }) {
   host.classList.remove('hidden');
@@ -23,7 +21,7 @@ export function runOnboarding(host, { onDone }) {
     clearInterval(clockTimer);
     setOnboarded(true);
     if (baselineWpm) {
-      try { await addSession({ bookId: null, bookTitle: 'Onboarding baseline', mode: 'natural', wpm: baselineWpm, words: PASSAGES.join(' ').split(/\s+/).length, seconds: Math.round((Date.now() - t0) / 1000) }); } catch {}
+      try { await addSession({ bookId: null, bookTitle: 'Onboarding baseline', mode: 'natural', wpm: baselineWpm, words: pagesWordCount(PASSAGES), seconds: Math.round((Date.now() - t0) / 1000) }); } catch {}
     }
     host.classList.add('hidden');
     host.innerHTML = '';
@@ -79,7 +77,7 @@ export function runOnboarding(host, { onDone }) {
 
     if (step === 3) {
       body.appendChild(el('div', { class: 'onb-h', text: 'Find your starting speed' }));
-      body.appendChild(el('div', { class: 'onb-p', text: 'Read two short passages at your normal pace — no rush, no tricks. We time it and set the trainer just above your natural speed.' }));
+      body.appendChild(el('div', { class: 'onb-p', text: `Read the start of a short story ("${STORY_TITLE}") at your normal pace — no rush, no tricks. We time it and set the trainer just above your natural speed.` }));
       body.appendChild(el('div', { class: 'card', style: { display: 'flex', gap: '10px', alignItems: 'center' } },
         svgIcon('clock', 20),
         el('div', { style: { fontSize: '12px', color: 'var(--text3)', lineHeight: '1.5' }, text: 'Takes about a minute. The timer starts when the passage appears.' }),
@@ -105,7 +103,7 @@ export function runOnboarding(host, { onDone }) {
       foot.appendChild(el('button', { class: 'btn primary', onclick: () => {
         if (page < PASSAGES.length - 1) { page += 1; render(); return; }
         clearInterval(clockTimer);
-        const words = PASSAGES.join(' ').split(/\s+/).length;
+        const words = pagesWordCount(PASSAGES);
         const mins = Math.max(0.08, (Date.now() - t0) / 60000);
         baselineWpm = Math.min(700, Math.max(80, Math.round(words / mins)));
         const rec = [200, 250, 300, 350, 400].find((p) => p > baselineWpm) || 400;

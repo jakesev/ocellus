@@ -130,10 +130,14 @@ export class ReaderEngine {
       return;
     }
 
-    this._next = this._next + this._durFor(tok);
-    // drift correction: if the tab slept, don't fast-forward through words
+    const dur = this._durFor(tok);
+    this._next = this._next + dur;
+    // Never burst-catch-up: after any stall (tab hiccup, heavy layout, sleep)
+    // re-anchor instead of firing a rapid chain of zero-wait ticks — that was
+    // the "shoots through the words" bug. Small jitter (<½ word) may tick
+    // promptly once; anything larger gets a full word duration again.
     const now = performance.now();
-    if (this._next < now - 500) this._next = now + this._durFor(tok);
+    if (this._next < now - dur * 0.5) this._next = now + dur;
     this.onTick(this.i, tok);
     this._schedule();
   }

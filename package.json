@@ -6,6 +6,6 @@
   "type": "module",
   "scripts": {
     "start": "node ocellus-gemma-local.mjs",
-    "test": "node --test tests/parse.test.mjs tests/tokenize.test.mjs tests/extract.test.mjs"
+    "test": "node --test tests/parse.test.mjs tests/tokenize.test.mjs tests/extract.test.mjs tests/engine.test.mjs"
   }
 }

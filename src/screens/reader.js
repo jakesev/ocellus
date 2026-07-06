@@ -196,6 +196,7 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
       gScroll.appendChild(el('button', { class: 'btn ghost small', style: { margin: '4px auto 30px', display: 'flex' }, onclick: () => { engine.seek(book.chapters[k + 1].tIndex); } }, (book.chapters[k + 1].title || 'Next section') + ' ›'));
     }
     curSpan = null; curParaEl = null;
+    lastPacerTop = -1; // fresh chapter: pacer snaps into place, no slide from stale coords
     applyDim(tokens[Math.min(engine.i, tokens.length - 1)].p);
   }
 
@@ -235,6 +236,23 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
     });
   }
 
+  /** Exact glyph box of a word span in scroll-content coordinates.
+   *  getClientRects (not offsetLeft/offsetWidth) so a span that wraps across
+   *  lines highlights its first fragment instead of a phantom double-width box. */
+  function spanRect(span) {
+    const rects = span.getClientRects();
+    const r = rects.length ? rects[0] : span.getBoundingClientRect();
+    const c = gScroll.getBoundingClientRect();
+    return {
+      top: r.top - c.top + gScroll.scrollTop,
+      left: r.left - c.left + gScroll.scrollLeft,
+      width: r.width,
+      height: r.height,
+    };
+  }
+
+  let lastPacerTop = -1; // line tracker: pacer snaps (never slides) between lines
+
   function guidedTick(i, tok) {
     const k = chapterForToken(i);
     if (k !== chapterIdx || !spanByToken.size) renderChapter(k);
@@ -255,32 +273,37 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
     const wordMs = tokenMs(tok, 60000 / engine.wpm, settings.variableTiming);
     const trans = Math.max(40, Math.min(140, Math.round(wordMs * 0.6)));
 
-    const top = span.offsetTop, left = span.offsetLeft, w = span.offsetWidth, h = span.offsetHeight;
+    const r = spanRect(span);
+    const sameLine = Math.abs(r.top - lastPacerTop) < 2;
+    lastPacerTop = r.top;
+    // Glide along a line; SNAP on line/paragraph/chapter changes — a moving
+    // transition across lines is what read as "over the line" and "skipping".
+    const glide = sameLine ? `left ${trans}ms linear, width ${trans}ms linear` : 'none';
 
-    // line band behind the current line
     if (style === 'underline' || style === 'dot' || style === 'band') {
       gBand.style.display = 'block';
+      gBand.style.transition = sameLine ? '' : 'none';
       gBand.style.background = hexA(tint, style === 'band' ? bandA + 0.05 : bandA * 0.6);
-      gBand.style.top = (top - 3) + 'px';
-      gBand.style.height = (h + 6) + 'px';
+      gBand.style.top = (r.top - 3) + 'px';
+      gBand.style.height = (r.height + 6) + 'px';
     } else gBand.style.display = 'none';
 
     if (style === 'underline') {
       gLine.style.display = 'block';
-      gLine.style.transition = `left ${trans}ms linear, width ${trans}ms linear, top 90ms ease-out`;
+      gLine.style.transition = glide;
       gLine.style.background = tint;
       gLine.style.height = lineH + 'px';
-      gLine.style.top = (top + h - 1) + 'px';
-      gLine.style.left = left + 'px';
-      gLine.style.width = w + 'px';
+      gLine.style.top = (r.top + r.height - 1) + 'px';
+      gLine.style.left = r.left + 'px';
+      gLine.style.width = r.width + 'px';
     } else gLine.style.display = 'none';
 
     if (style === 'dot') {
       gDot.style.display = 'block';
-      gDot.style.transition = `left ${trans}ms linear, top 90ms ease-out`;
+      gDot.style.transition = glide;
       gDot.style.background = tint;
-      gDot.style.top = (top + h + 1) + 'px';
-      gDot.style.left = (left + w / 2 - 3) + 'px';
+      gDot.style.top = (r.top + r.height + 1) + 'px';
+      gDot.style.left = (r.left + r.width / 2 - 3) + 'px';
     } else gDot.style.display = 'none';
 
     if (style === 'word') {
@@ -289,10 +312,10 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
     }
 
     if (settings.autoScroll) {
-      const vis = top - gScroll.scrollTop;
+      const vis = r.top - gScroll.scrollTop;
       const H = gScroll.clientHeight;
       if (vis > H * 0.62 || vis < 36) {
-        gScroll.scrollTo({ top: Math.max(0, top - H * 0.33), behavior: engine.playing ? 'smooth' : 'auto' });
+        gScroll.scrollTo({ top: Math.max(0, r.top - H * 0.33), behavior: engine.playing ? 'smooth' : 'auto' });
       }
     }
   }
@@ -710,6 +733,7 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
     engine.destroy();
     setActiveEngine(null);
     if (unsub) unsub();
+    removeResize();
     const stats = engine.sessionStats();
     await saveProgress();
     if (stats.words >= 30) toast(`Saved · ${fmtK(stats.words)} words in ${fmtTimeLeft(stats.minutes)}`);
@@ -726,6 +750,18 @@ export function openReaderScreen(root, ctx, book, { index } = {}) {
       layoutFlashChrome(); flashTick(engine.i, engine.token);
     }
   });
+
+  // re-measure when web fonts finish loading or the viewport changes —
+  // stale glyph metrics were another way the pacer drifted off the words
+  const reMeasure = () => {
+    if (disposed) return;
+    lastPacerTop = -1;
+    if (mode === 'flash') { frameW = 0; layoutFlashChrome(); }
+    onTick(engine.i, engine.token);
+  };
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(reMeasure).catch(() => {});
+  window.addEventListener('resize', reMeasure);
+  const removeResize = () => window.removeEventListener('resize', reMeasure);
 
   // initial mount
   mountMode();

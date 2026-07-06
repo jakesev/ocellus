@@ -19,6 +19,36 @@ test('tokenize never emits lone punctuation tokens', () => {
   }
 });
 
+test('quotes, question marks and commas always ride with their word', () => {
+  const text = '“What?” she asked. He said, “Nothing — nothing at all…” ; and left.\n\n* * *\n\n( So it began. )';
+  const { tokens } = tokenize(paragraphsFromText(text));
+  for (const t of tokens) {
+    assert.match(t.w, /[\p{L}\p{N}]/u, `lone punctuation token: "${t.w}"`);
+  }
+  assert.equal(tokens[0].w, '“What?”');
+  assert.ok(tokens.some((t) => t.w === 'asked.'));
+  // the “* * *” scene separator produces no tokens at all
+  assert.ok(!tokens.some((t) => t.w.includes('*')));
+});
+
+test('the whole sample book contains zero letterless tokens', async () => {
+  const { SAMPLE_TEXT } = await import('../src/sample.js');
+  const { tokens } = tokenize(paragraphsFromText(SAMPLE_TEXT));
+  const bad = tokens.filter((t) => t.img == null && !/[\p{L}\p{N}]/u.test(t.w));
+  assert.equal(bad.length, 0, 'letterless tokens: ' + bad.map((t) => t.w).slice(0, 5).join(' | '));
+  assert.ok(tokens.length > 6500);
+});
+
+test('speed-test story pages contain zero letterless tokens and enough words', async () => {
+  const { STORY_PAGES, SHORT_PAGES, pagesWordCount } = await import('../src/passages.js');
+  const { tokens } = tokenize(paragraphsFromText(STORY_PAGES.join('\n\n')));
+  for (const t of tokens) assert.match(t.w, /[\p{L}\p{N}]/u, `lone punctuation: "${t.w}"`);
+  const full = pagesWordCount(STORY_PAGES);
+  const quick = pagesWordCount(SHORT_PAGES);
+  assert.ok(quick >= 150 && quick <= 240, 'quick length ~1 min: ' + quick);
+  assert.ok(full >= quick * 1.9, `full (${full}) should be ~twice quick (${quick})`);
+});
+
 test('tokenize glues leading punctuation to the next word', () => {
   const { tokens } = tokenize([{ s: '— said the Doctor.' }]);
   assert.equal(tokens[0].w, '—said');
